@@ -4,15 +4,17 @@
 #include <QString>
 #include <QVector>
 
-// Table model backing the log view. Each row is one parsed log line.
-//
-// D1-D4 loads synchronously; W/D6 will move parsing to a worker thread and
-// stream rows in via beginInsertRows so the UI stays responsive on huge files.
 class LogModel : public QAbstractTableModel {
     Q_OBJECT
 public:
     enum class Level { Trace, Debug, Info, Warn, Error, Unknown };
     enum Column { Col_Line = 0, Col_Level, Col_Message, ColumnCount };
+
+    // Custom role: exposes the raw Level (as int) so the filter proxy and the
+    // coloring delegate can query severity without re-parsing the text.
+    enum Role { LevelRole = Qt::UserRole + 1 };
+
+    static constexpr int LevelCount = 6; // keep in sync with enum Level
 
     explicit LogModel(QObject* parent = nullptr);
 

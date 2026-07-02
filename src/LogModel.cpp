@@ -1,6 +1,5 @@
 #include "LogModel.h"
 
-#include <QColor>
 #include <QFile>
 #include <QRegularExpression>
 #include <QTextStream>
@@ -61,17 +60,9 @@ QVariant LogModel::data(const QModelIndex& index, int role) const {
         }
     }
 
-    // Simple severity coloring. D5 will move this into a dedicated delegate.
-    if (role == Qt::ForegroundRole) {
-        switch (e.level) {
-        case Level::Error:
-            return QColor(0xE0, 0x5A, 0x5A);
-        case Level::Warn:
-            return QColor(0xD6, 0xA5, 0x3C);
-        default:
-            break;
-        }
-    }
+    // Raw severity for the filter proxy / coloring delegate (any column).
+    if (role == LevelRole)
+        return static_cast<int>(e.level);
 
     return {};
 }

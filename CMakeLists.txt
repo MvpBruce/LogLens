@@ -16,7 +16,11 @@ qt_add_executable(LogLens
   src/MainWindow.cpp
   src/MainWindow.h
   src/LogModel.cpp
-  src/LogModel.h)
+  src/LogModel.h
+  src/LogFilterProxy.cpp
+  src/LogFilterProxy.h
+  src/LogDelegate.cpp
+  src/LogDelegate.h)
 
 target_link_libraries(LogLens PRIVATE Qt6::Widgets)
 
