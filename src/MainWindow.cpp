@@ -2,6 +2,7 @@
 
 #include "LogDelegate.h"
 #include "LogFilterProxy.h"
+#include "LogLoader.h"
 #include "LogModel.h"
 
 #include <QCheckBox>
@@ -15,9 +16,11 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMimeData>
+#include <QProgressBar>
 #include <QSettings>
 #include <QStatusBar>
 #include <QTableView>
+#include <QThread>
 #include <QTimer>
 #include <QToolBar>
 
@@ -55,7 +58,60 @@ MainWindow::MainWindow(QWidget* parent)
     quitAct->setShortcut(QKeySequence::Quit);
     connect(quitAct, &QAction::triggered, this, &QWidget::close);
 
+    // Progress bar lives at the right of the status bar, hidden when idle.
+    m_progress = new QProgressBar(this);
+    m_progress->setMaximumWidth(180);
+    m_progress->setRange(0, 100);
+    m_progress->hide();
+    statusBar()->addPermanentWidget(m_progress);
     statusBar()->showMessage(QStringLiteral("Open a log file to begin"));
+
+    startLoaderThread();
+}
+
+MainWindow::~MainWindow() {
+    // Stop any in-flight parse and shut the worker thread down cleanly.
+    if (m_loader)
+        m_loader->cancel();
+    if (m_thread) {
+        m_thread->quit();
+        m_thread->wait();
+    }
+}
+
+void MainWindow::startLoaderThread() {
+    m_thread = new QThread(this);
+    m_loader = new LogLoader; // no parent: it is moved to the worker thread
+    m_loader->moveToThread(m_thread);
+    connect(m_thread, &QThread::finished, m_loader, &QObject::deleteLater);
+
+    // UI -> worker: queued because they live on different threads.
+    connect(this, &MainWindow::requestLoad, m_loader, &LogLoader::load);
+
+    // worker -> UI: each carries a generation so stale results are dropped.
+    connect(m_loader, &LogLoader::batchReady, this,
+            [this](quint64 gen, const QVector<LogModel::Entry>& batch) {
+                if (gen == m_generation)
+                    m_model->appendBatch(batch);
+            });
+    connect(m_loader, &LogLoader::progress, this, [this](quint64 gen, int pct) {
+        if (gen == m_generation)
+            m_progress->setValue(pct);
+    });
+    connect(m_loader, &LogLoader::finished, this,
+            [this](quint64 gen, bool ok, const QString& error) {
+                if (gen != m_generation)
+                    return;
+                m_progress->hide();
+                if (!ok && error != QLatin1String("canceled")) {
+                    QMessageBox::warning(this, QStringLiteral("LogLens"),
+                                         QStringLiteral("Failed to load:\n%1")
+                                             .arg(error));
+                }
+                updateStatus();
+            });
+
+    m_thread->start();
 }
 
 void MainWindow::onOpen() {
@@ -72,15 +128,18 @@ void MainWindow::onOpen() {
 }
 
 void MainWindow::openPath(const QString& path) {
-    QString error;
-    if (!m_model->loadFile(path, &error)) {
-        QMessageBox::warning(this, QStringLiteral("LogLens"),
-                             QStringLiteral("Failed to open %1:\n%2")
-                                 .arg(path, error));
-        return;
-    }
+    // Bump the generation so any in-flight load's remaining signals are ignored,
+    // and cancel it so the worker stops reading promptly.
+    ++m_generation;
+    m_loader->cancel();
+
+    m_model->beginStreaming(); // clear to empty; batches stream in
+    m_progress->setValue(0);
+    m_progress->show();
     setWindowTitle(QStringLiteral("LogLens — %1").arg(QFileInfo(path).fileName()));
-    updateStatus();
+    statusBar()->showMessage(QStringLiteral("Loading %1...").arg(path));
+
+    emit requestLoad(path, m_generation);
 }
 
 void MainWindow::buildFilterBar() {

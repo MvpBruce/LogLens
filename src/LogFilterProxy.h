@@ -39,6 +39,8 @@ public:
 
 private slots:
     void rebuild(); // recompute the visible-rows vector + reset
+    // Streaming loads append rows at the end of the source; map just those.
+    void onSourceRowsInserted(const QModelIndex& parent, int first, int last);
 
 private:
     bool accepts(int sourceRow) const;

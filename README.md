@@ -80,13 +80,21 @@ classDiagram
     class LogDelegate {
         #initStyleOption(opt, index) void
     }
+    class LogLoader {
+        +load(path, generation) void
+        +cancel() void
+        «signal» batchReady(gen, batch)
+    }
 
     QMainWindow <|-- MainWindow
     QAbstractTableModel <|-- LogModel
     QAbstractProxyModel <|-- LogFilterProxy
     QStyledItemDelegate <|-- LogDelegate
+    QObject <|-- LogLoader
     MainWindow o--> LogModel : owns
     MainWindow o--> LogFilterProxy : owns
+    MainWindow ..> LogLoader : owns (worker thread)
+    LogLoader ..> LogModel : batches -> appendBatch()
     LogFilterProxy --> LogModel : source model
     QTableView ..> LogFilterProxy : queries via proxy
     LogDelegate ..> LogModel : reads LevelRole
@@ -123,23 +131,33 @@ New features slot in as a layer — the core `LogModel` barely changes.
 
 ```mermaid
 flowchart LR
-    F[Log file] --> M[LogModel]
+    F[Log file] --> L["LogLoader<br/>(worker thread)"]
+    L -- "batches (queued signal)" --> M[LogModel]
     M --> P[LogFilterProxy]
     P --> V[QTableView]
     D[LogDelegate<br/>severity color] -. paints .-> V
 
-    W[Worker thread]:::planned
     FW[QFileSystemWatcher]:::planned
-
-    W -. "D6: parse off the UI thread" .-> M
     FW -. "D7: live tail" .-> M
 
     classDef planned stroke-dasharray: 5 5,stroke:#888;
 ```
 
-D5 added the solid `LogFilterProxy` (level + substring/regex filtering) and
-`LogDelegate` (coloring), keeping `LogModel` a pure data container. D6/D7 remain
-planned (dashed).
+`LogFilterProxy` (level + substring/regex filtering) and `LogDelegate` (coloring)
+keep `LogModel` a pure data container. `LogLoader` parses on a worker thread and
+streams batches back via a queued signal, so the UI stays responsive on huge
+files. D7 (live tail) remains planned (dashed).
+
+### Design note: safe threaded loading
+
+Qt only lets the thread that created a model mutate it, so `LogLoader` parses on
+the worker thread but the model is only ever touched on the UI thread — the
+worker emits `batchReady` and a queued connection delivers it to
+`LogModel::appendBatch`. Switching files mid-load is a classic race: the previous
+load's in-flight batches may still be queued when the new one starts. Two
+mechanisms handle it — `cancel()` (an atomic flag) stops the worker promptly, and
+a monotonic **generation** token tags every signal so any late batch from an old
+load is recognized and dropped instead of corrupting the new file's view.
 
 ### Design note: why a custom proxy instead of `QSortFilterProxyModel`
 

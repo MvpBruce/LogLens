@@ -35,6 +35,20 @@ void LogModel::clear() {
     endResetModel();
 }
 
+void LogModel::beginStreaming() {
+    // Discard any current content and prepare for incoming batches.
+    clear();
+}
+
+void LogModel::appendBatch(const QVector<Entry>& batch) {
+    if (batch.isEmpty())
+        return;
+    const int first = static_cast<int>(m_entries.size());
+    beginInsertRows({}, first, first + static_cast<int>(batch.size()) - 1);
+    m_entries += batch;
+    endInsertRows();
+}
+
 int LogModel::rowCount(const QModelIndex& parent) const {
     return parent.isValid() ? 0 : static_cast<int>(m_entries.size());
 }

@@ -12,10 +12,12 @@ void LogFilterProxy::setSourceModel(QAbstractItemModel* source) {
     QAbstractProxyModel::setSourceModel(source);
 
     if (source) {
-        // The model is (re)populated via begin/endResetModel in loadFile, so a
-        // single modelReset is all we need to react to for now.
+        // beginStreaming()/loadFile() reset the model; streamed batches then
+        // arrive as appends (rowsInserted at the end).
         connect(source, &QAbstractItemModel::modelReset, this,
                 &LogFilterProxy::rebuild);
+        connect(source, &QAbstractItemModel::rowsInserted, this,
+                &LogFilterProxy::onSourceRowsInserted);
     }
     rebuild();
 }
@@ -67,6 +69,35 @@ void LogFilterProxy::rebuild() {
     }
 
     endResetModel();
+}
+
+void LogFilterProxy::onSourceRowsInserted(const QModelIndex& parent, int first,
+                                          int last) {
+    // The streaming loader only ever appends. If some other insert happens in
+    // the middle, fall back to a full rebuild to stay correct.
+    if (parent.isValid() || first != m_sourceToProxy.size()) {
+        rebuild();
+        return;
+    }
+
+    // Grow the reverse map for the new source rows (default: not visible).
+    m_sourceToProxy.resize(last + 1, -1);
+
+    QVector<int> accepted;
+    for (int row = first; row <= last; ++row) {
+        if (accepts(row))
+            accepted.append(row);
+    }
+    if (accepted.isEmpty())
+        return;
+
+    const int proxyFirst = static_cast<int>(m_rows.size());
+    beginInsertRows({}, proxyFirst, proxyFirst + accepted.size() - 1);
+    for (int row : accepted) {
+        m_sourceToProxy[row] = static_cast<int>(m_rows.size());
+        m_rows.append(row);
+    }
+    endInsertRows();
 }
 
 bool LogFilterProxy::accepts(int sourceRow) const {

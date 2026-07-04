@@ -16,12 +16,26 @@ public:
 
     static constexpr int LevelCount = 6; // keep in sync with enum Level
 
+    // One parsed log line. Public so the background loader can build batches of
+    // these off the UI thread and hand them back via a queued signal.
+    struct Entry {
+        int lineNo;
+        Level level;
+        QString text;
+    };
+
     explicit LogModel(QObject* parent = nullptr);
 
-    // Reads the whole file and rebuilds the model. Returns false on failure and
-    // fills *error (if provided) with a message.
+    // Reads the whole file synchronously and rebuilds the model. Used by the
+    // headless CLI; the GUI streams instead (see beginStreaming/appendBatch).
     bool loadFile(const QString& path, QString* error = nullptr);
     void clear();
+
+    // Streaming API, driven by the background LogLoader:
+    //   beginStreaming() resets to empty, then appendBatch() is called
+    //   repeatedly on the UI thread as the worker parses the file.
+    void beginStreaming();
+    void appendBatch(const QVector<Entry>& batch);
 
     int rowCount(const QModelIndex& parent = {}) const override;
     int columnCount(const QModelIndex& parent = {}) const override;
@@ -33,10 +47,8 @@ public:
     static QString levelName(Level level);
 
 private:
-    struct Entry {
-        int lineNo;
-        Level level;
-        QString text;
-    };
     QVector<Entry> m_entries;
 };
+
+// Needed so batches can cross threads via a queued signal/slot connection.
+Q_DECLARE_METATYPE(QVector<LogModel::Entry>)
