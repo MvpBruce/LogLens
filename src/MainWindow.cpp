@@ -4,6 +4,7 @@
 #include "LogFilterProxy.h"
 #include "LogLoader.h"
 #include "LogModel.h"
+#include "LogTailer.h"
 
 #include <QCheckBox>
 #include <QDragEnterEvent>
@@ -17,6 +18,7 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QProgressBar>
+#include <QScrollBar>
 #include <QSettings>
 #include <QStatusBar>
 #include <QTableView>
@@ -46,6 +48,21 @@ MainWindow::MainWindow(QWidget* parent)
     m_view->setColumnWidth(LogModel::Col_Line, 70);
     m_view->setColumnWidth(LogModel::Col_Level, 70);
     setCentralWidget(m_view);
+
+    // Live tail: parse appended lines and (when following) keep the view pinned
+    // to the bottom. The at-bottom check must be sampled *before* rows arrive.
+    m_tailer = new LogTailer(m_model, this);
+    connect(m_tailer, &LogTailer::appended, this, &MainWindow::updateStatus);
+    connect(m_model, &QAbstractItemModel::rowsAboutToBeInserted, this, [this] {
+        if (!m_tailing)
+            return;
+        const QScrollBar* sb = m_view->verticalScrollBar();
+        m_stickToBottom = sb->value() >= sb->maximum() - 2;
+    });
+    connect(m_model, &QAbstractItemModel::rowsInserted, this, [this] {
+        if (m_tailing && m_stickToBottom)
+            m_view->scrollToBottom();
+    });
 
     buildFilterBar();
 
@@ -109,6 +126,9 @@ void MainWindow::startLoaderThread() {
                                              .arg(error));
                 }
                 updateStatus();
+                // Resume following the file now that the initial load is done.
+                if (ok && m_tailToggle && m_tailToggle->isChecked())
+                    startTailing();
             });
 
     m_thread->start();
@@ -132,6 +152,10 @@ void MainWindow::openPath(const QString& path) {
     // and cancel it so the worker stops reading promptly.
     ++m_generation;
     m_loader->cancel();
+
+    // Pause tailing during load; it resumes on finish if "Tail -f" is checked.
+    stopTailing();
+    m_currentPath = path;
 
     m_model->beginStreaming(); // clear to empty; batches stream in
     m_progress->setValue(0);
@@ -197,6 +221,32 @@ void MainWindow::buildFilterBar() {
         });
         bar->addWidget(cb);
     }
+
+    bar->addSeparator();
+    m_tailToggle = new QCheckBox(QStringLiteral("Tail -f"), bar);
+    connect(m_tailToggle, &QCheckBox::toggled, this, [this](bool on) {
+        if (on)
+            startTailing();
+        else
+            stopTailing();
+    });
+    bar->addWidget(m_tailToggle);
+}
+
+void MainWindow::startTailing() {
+    if (m_currentPath.isEmpty()) {
+        m_tailing = false;
+        return;
+    }
+    // Everything currently in the file is already loaded; follow from its end.
+    m_tailer->start(m_currentPath, QFileInfo(m_currentPath).size());
+    m_tailing = true;
+    m_view->scrollToBottom();
+}
+
+void MainWindow::stopTailing() {
+    m_tailer->stop();
+    m_tailing = false;
 }
 
 void MainWindow::updateStatus() {

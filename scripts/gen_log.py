@@ -5,7 +5,7 @@ Usage:
     python scripts/gen_log.py                       # 500k lines -> sample.log
     python scripts/gen_log.py -n 2000000 -o big.log # 2M lines
     python scripts/gen_log.py --seed 42             # reproducible output
-    python scripts/gen_log.py --follow live.log     # keep appending (Ctrl+C to stop)
+    python scripts/gen_log.py --follow -o live.log  # keep appending (Ctrl+C to stop)
 
 The last form is for demoing live tail: point LogLens at live.log and watch
 new lines stream in.

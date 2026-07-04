@@ -5,6 +5,8 @@
 class LogModel;
 class LogFilterProxy;
 class LogLoader;
+class LogTailer;
+class QCheckBox;
 class QLineEdit;
 class QProgressBar;
 class QTableView;
@@ -34,9 +36,11 @@ private slots:
     void onOpen();
 
 private:
-    void buildFilterBar();   // toolbar: text query, regex, level checkboxes
+    void buildFilterBar();    // toolbar: text query, regex, level checkboxes, tail
     void startLoaderThread(); // spin up the worker + wire its signals
-    void updateStatus();     // "showing X of N lines"
+    void startTailing();      // follow the current file for appended lines
+    void stopTailing();
+    void updateStatus();      // "showing X of N lines"
 
     LogModel* m_model;
     LogFilterProxy* m_proxy;
@@ -48,4 +52,10 @@ private:
     LogLoader* m_loader = nullptr;
     QProgressBar* m_progress = nullptr;
     quint64 m_generation = 0; // bumped per load; stale signals are ignored
+
+    LogTailer* m_tailer = nullptr;
+    QCheckBox* m_tailToggle = nullptr;
+    QString m_currentPath;
+    bool m_tailing = false;      // auto-scroll only while actively tailing
+    bool m_stickToBottom = false; // view was at the bottom before an append
 };

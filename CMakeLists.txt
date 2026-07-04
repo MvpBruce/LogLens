@@ -22,7 +22,9 @@ qt_add_executable(LogLens
   src/LogDelegate.cpp
   src/LogDelegate.h
   src/LogLoader.cpp
-  src/LogLoader.h)
+  src/LogLoader.h
+  src/LogTailer.cpp
+  src/LogTailer.h)
 
 target_link_libraries(LogLens PRIVATE Qt6::Widgets)
 
