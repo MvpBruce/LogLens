@@ -37,10 +37,13 @@ private slots:
 
 private:
     void buildFilterBar();    // toolbar: text query, regex, level checkboxes, tail
+    void buildFindBar();      // second toolbar row: find text, prev/next
     void startLoaderThread(); // spin up the worker + wire its signals
     void startTailing();      // follow the current file for appended lines
     void stopTailing();
-    void updateStatus();      // "showing X of N lines"
+    void findNext(bool forward); // jump to the next/prev row matching the find box
+    void exportFiltered();       // write the currently visible rows to a file
+    void updateStatus();         // "showing X of N lines"
 
     LogModel* m_model;
     LogFilterProxy* m_proxy;
@@ -55,6 +58,7 @@ private:
 
     LogTailer* m_tailer = nullptr;
     QCheckBox* m_tailToggle = nullptr;
+    QLineEdit* m_find = nullptr;
     QString m_currentPath;
     bool m_tailing = false;      // auto-scroll only while actively tailing
     bool m_stickToBottom = false; // view was at the bottom before an append

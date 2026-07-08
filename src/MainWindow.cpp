@@ -9,6 +9,7 @@
 #include <QCheckBox>
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHeaderView>
@@ -22,6 +23,7 @@
 #include <QSettings>
 #include <QStatusBar>
 #include <QTableView>
+#include <QTextStream>
 #include <QThread>
 #include <QTimer>
 #include <QToolBar>
@@ -65,11 +67,15 @@ MainWindow::MainWindow(QWidget* parent)
     });
 
     buildFilterBar();
+    buildFindBar();
 
     QMenu* fileMenu = menuBar()->addMenu(QStringLiteral("&File"));
     QAction* openAct = fileMenu->addAction(QStringLiteral("&Open..."));
     openAct->setShortcut(QKeySequence::Open);
     connect(openAct, &QAction::triggered, this, &MainWindow::onOpen);
+    QAction* exportAct =
+        fileMenu->addAction(QStringLiteral("&Export Filtered..."));
+    connect(exportAct, &QAction::triggered, this, &MainWindow::exportFiltered);
     fileMenu->addSeparator();
     QAction* quitAct = fileMenu->addAction(QStringLiteral("E&xit"));
     quitAct->setShortcut(QKeySequence::Quit);
@@ -247,6 +253,95 @@ void MainWindow::startTailing() {
 void MainWindow::stopTailing() {
     m_tailer->stop();
     m_tailing = false;
+}
+
+void MainWindow::buildFindBar() {
+    addToolBarBreak(); // put Find on its own row below the filter bar
+    QToolBar* bar = addToolBar(QStringLiteral("Find"));
+    bar->setMovable(false);
+
+    bar->addWidget(new QLabel(QStringLiteral(" Find: "), bar));
+    m_find = new QLineEdit(bar);
+    m_find->setPlaceholderText(QStringLiteral("Find in messages (Enter = next)"));
+    m_find->setClearButtonEnabled(true);
+    m_find->setMinimumWidth(240);
+    connect(m_find, &QLineEdit::returnPressed, this, [this] { findNext(true); });
+    bar->addWidget(m_find);
+
+    QAction* prev = bar->addAction(QStringLiteral("Prev"));
+    prev->setShortcut(QKeySequence::FindPrevious); // Shift+F3
+    connect(prev, &QAction::triggered, this, [this] { findNext(false); });
+
+    QAction* next = bar->addAction(QStringLiteral("Next"));
+    next->setShortcut(QKeySequence::FindNext); // F3
+    connect(next, &QAction::triggered, this, [this] { findNext(true); });
+
+    // Ctrl+F focuses the find box.
+    QAction* focusFind = new QAction(this);
+    focusFind->setShortcut(QKeySequence::Find);
+    connect(focusFind, &QAction::triggered, this, [this] {
+        m_find->setFocus();
+        m_find->selectAll();
+    });
+    addAction(focusFind);
+}
+
+void MainWindow::findNext(bool forward) {
+    const QString needle = m_find->text();
+    const int rows = m_proxy->rowCount();
+    if (needle.isEmpty() || rows == 0)
+        return;
+
+    // Search the (filtered) proxy rows, wrapping around, starting just past the
+    // current selection in the chosen direction.
+    const int step = forward ? 1 : -1;
+    const int current = m_view->currentIndex().isValid()
+                            ? m_view->currentIndex().row()
+                            : (forward ? -1 : rows);
+    for (int i = 1; i <= rows; ++i) {
+        const int row = ((current + step * i) % rows + rows) % rows;
+        const QString text =
+            m_proxy->index(row, LogModel::Col_Message).data().toString();
+        if (text.contains(needle, Qt::CaseInsensitive)) {
+            const QModelIndex hit = m_proxy->index(row, LogModel::Col_Message);
+            m_view->setCurrentIndex(hit);
+            m_view->scrollTo(hit, QAbstractItemView::PositionAtCenter);
+            statusBar()->showMessage(
+                QStringLiteral("Match at line %1")
+                    .arg(m_proxy->index(row, LogModel::Col_Line).data().toInt()));
+            return;
+        }
+    }
+    statusBar()->showMessage(QStringLiteral("No match for \"%1\"").arg(needle));
+}
+
+void MainWindow::exportFiltered() {
+    const int rows = m_proxy->rowCount();
+    if (rows == 0) {
+        statusBar()->showMessage(QStringLiteral("Nothing to export"));
+        return;
+    }
+
+    const QString path = QFileDialog::getSaveFileName(
+        this, QStringLiteral("Export filtered log"), QString(),
+        QStringLiteral("Log files (*.log *.txt);;All files (*)"));
+    if (path.isEmpty())
+        return;
+
+    QFile out(path);
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::warning(this, QStringLiteral("LogLens"),
+                             QStringLiteral("Cannot write %1:\n%2")
+                                 .arg(path, out.errorString()));
+        return;
+    }
+
+    QTextStream ts(&out);
+    for (int row = 0; row < rows; ++row)
+        ts << m_proxy->index(row, LogModel::Col_Message).data().toString() << '\n';
+
+    statusBar()->showMessage(
+        QStringLiteral("Exported %1 lines to %2").arg(rows).arg(path));
 }
 
 void MainWindow::updateStatus() {

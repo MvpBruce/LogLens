@@ -6,6 +6,7 @@ A fast **Qt desktop log viewer / analyzer** for large log files.
 - Substring + **regex** filtering, per-severity row coloring
 - **Background parsing** on a worker thread — the UI never freezes
 - Live **tail -f** via `QFileSystemWatcher`
+- **Find** (next/prev, wrapping) and **export** of the filtered view
 - Window/session state persisted with `QSettings`
 
 > Tech: C++17 · Qt 6 Widgets · CMake
