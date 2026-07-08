@@ -18,6 +18,7 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMimeData>
+#include <QPalette>
 #include <QProgressBar>
 #include <QScrollBar>
 #include <QSettings>
@@ -47,6 +48,16 @@ MainWindow::MainWindow(QWidget* parent)
     m_view->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_view->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_view->horizontalHeader()->setStretchLastSection(true);
+
+    // Find keeps focus in the search box, so the table is "inactive" when a row
+    // is selected. Make the inactive highlight match the active one so search
+    // hits stay clearly visible.
+    QPalette pal = m_view->palette();
+    pal.setColor(QPalette::Inactive, QPalette::Highlight,
+                 pal.color(QPalette::Active, QPalette::Highlight));
+    pal.setColor(QPalette::Inactive, QPalette::HighlightedText,
+                 pal.color(QPalette::Active, QPalette::HighlightedText));
+    m_view->setPalette(pal);
     m_view->setColumnWidth(LogModel::Col_Line, 70);
     m_view->setColumnWidth(LogModel::Col_Level, 70);
     setCentralWidget(m_view);
@@ -304,6 +315,7 @@ void MainWindow::findNext(bool forward) {
             m_proxy->index(row, LogModel::Col_Message).data().toString();
         if (text.contains(needle, Qt::CaseInsensitive)) {
             const QModelIndex hit = m_proxy->index(row, LogModel::Col_Message);
+            m_view->selectRow(row); // highlight the whole matching row
             m_view->setCurrentIndex(hit);
             m_view->scrollTo(hit, QAbstractItemView::PositionAtCenter);
             statusBar()->showMessage(

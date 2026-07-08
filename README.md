@@ -11,11 +11,9 @@ A fast **Qt desktop log viewer / analyzer** for large log files.
 
 > Tech: C++17 · Qt 6 Widgets · CMake
 
-<!-- Record with ScreenToGif: drag a large .log in (instant open) -> type a
-     filter -> toggle regex -> show live tail. 5-12s, <5MB, ~800px wide.
-     Uncomment once docs/demo.gif exists:
+
 ![LogLens demo](docs/demo.gif)
--->
+
 
 ## Prerequisites
 
