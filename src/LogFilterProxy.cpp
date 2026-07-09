@@ -50,6 +50,14 @@ void LogFilterProxy::setLevelEnabled(LogModel::Level level, bool enabled) {
     rebuild();
 }
 
+bool LogFilterProxy::hasRegexError() const {
+    return m_useRegex && !m_query.isEmpty() && !m_regex.isValid();
+}
+
+QString LogFilterProxy::regexErrorString() const {
+    return m_regex.errorString();
+}
+
 void LogFilterProxy::rebuild() {
     beginResetModel();
 
@@ -102,6 +110,8 @@ void LogFilterProxy::onSourceRowsInserted(const QModelIndex& parent, int first,
 
 bool LogFilterProxy::accepts(int sourceRow) const {
     const QAbstractItemModel* src = sourceModel();
+    if (!src || sourceRow < 0 || sourceRow >= src->rowCount())
+        return false;
 
     // Level filter (cheap: one role lookup, no text scan).
     const int level =

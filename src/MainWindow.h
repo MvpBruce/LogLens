@@ -55,6 +55,7 @@ private:
     LogLoader* m_loader = nullptr;
     QProgressBar* m_progress = nullptr;
     quint64 m_generation = 0; // bumped per load; stale signals are ignored
+    qint64 m_loadedOffset = 0; // byte offset reached by the current full load
 
     LogTailer* m_tailer = nullptr;
     QCheckBox* m_tailToggle = nullptr;

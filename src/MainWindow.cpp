@@ -133,9 +133,10 @@ void MainWindow::startLoaderThread() {
             m_progress->setValue(pct);
     });
     connect(m_loader, &LogLoader::finished, this,
-            [this](quint64 gen, bool ok, const QString& error) {
+            [this](quint64 gen, bool ok, const QString& error, qint64 offset) {
                 if (gen != m_generation)
                     return;
+                m_loadedOffset = offset;
                 m_progress->hide();
                 if (!ok && error != QLatin1String("canceled")) {
                     QMessageBox::warning(this, QStringLiteral("LogLens"),
@@ -173,6 +174,7 @@ void MainWindow::openPath(const QString& path) {
     // Pause tailing during load; it resumes on finish if "Tail -f" is checked.
     stopTailing();
     m_currentPath = path;
+    m_loadedOffset = 0;
 
     m_model->beginStreaming(); // clear to empty; batches stream in
     m_progress->setValue(0);
@@ -192,6 +194,12 @@ void MainWindow::buildFilterBar() {
     // Re-filtering is a single call; updateStatus() is called once afterwards.
     auto applyQuery = [this] {
         m_proxy->setQuery(m_query->text());
+        if (m_proxy->hasRegexError()) {
+            statusBar()->showMessage(
+                QStringLiteral("Invalid regex: %1")
+                    .arg(m_proxy->regexErrorString()));
+            return;
+        }
         updateStatus();
     };
 
@@ -255,8 +263,9 @@ void MainWindow::startTailing() {
         m_tailing = false;
         return;
     }
-    // Everything currently in the file is already loaded; follow from its end.
-    m_tailer->start(m_currentPath, QFileInfo(m_currentPath).size());
+    // Continue from the byte offset reached by the loader. This avoids losing
+    // lines appended between initial load completion and watcher setup.
+    m_tailer->start(m_currentPath, m_loadedOffset);
     m_tailing = true;
     m_view->scrollToBottom();
 }

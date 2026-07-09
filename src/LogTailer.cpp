@@ -18,6 +18,7 @@ void LogTailer::start(const QString& path, qint64 offset) {
     m_offset = offset;
     m_active = true;
     m_watcher->addPath(m_path);
+    readNew();
 }
 
 void LogTailer::stop() {
@@ -64,11 +65,13 @@ void LogTailer::readNew() {
 
     QVector<LogModel::Entry> batch;
     int lineNo = m_model->rowCount(); // continue file line numbering
-    for (QByteArray raw : complete.split('\n')) {
+    const QList<QByteArray> lines = complete.split('\n');
+    for (int i = 0; i < lines.size(); ++i) {
+        QByteArray raw = lines.at(i);
+        if (i == lines.size() - 1 && raw.isEmpty())
+            continue; // trailing element after the final newline
         if (raw.endsWith('\r'))
             raw.chop(1); // tolerate CRLF logs
-        if (raw.isEmpty())
-            continue; // trailing empty element after the final '\n'
         const QString line = QString::fromUtf8(raw);
         batch.push_back({++lineNo, LogModel::detectLevel(line), line});
     }

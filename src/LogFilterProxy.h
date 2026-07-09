@@ -23,6 +23,8 @@ public:
     void setQuery(const QString& text);
     void setUseRegex(bool enabled);
     void setLevelEnabled(LogModel::Level level, bool enabled);
+    bool hasRegexError() const;
+    QString regexErrorString() const;
 
     // QAbstractItemModel (flat table).
     int rowCount(const QModelIndex& parent = {}) const override;

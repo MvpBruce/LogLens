@@ -2,6 +2,7 @@
 
 #include <QFile>
 #include <QRegularExpression>
+#include <QStringConverter>
 #include <QTextStream>
 
 LogModel::LogModel(QObject* parent) : QAbstractTableModel(parent) {}
@@ -18,6 +19,7 @@ bool LogModel::loadFile(const QString& path, QString* error) {
     m_entries.clear();
 
     QTextStream in(&file);
+    in.setEncoding(QStringConverter::Utf8);
     int lineNo = 0;
     while (!in.atEnd()) {
         const QString line = in.readLine();

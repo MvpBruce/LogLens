@@ -28,7 +28,7 @@ signals:
     void started(quint64 generation);
     void batchReady(quint64 generation, QVector<LogModel::Entry> batch);
     void progress(quint64 generation, int percent);
-    void finished(quint64 generation, bool ok, QString error);
+    void finished(quint64 generation, bool ok, QString error, qint64 offset);
 
 private:
     QAtomicInt m_cancel{0};

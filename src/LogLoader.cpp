@@ -1,6 +1,7 @@
 #include "LogLoader.h"
 
 #include <QFile>
+#include <QStringConverter>
 #include <QTextStream>
 
 namespace {
@@ -19,12 +20,13 @@ void LogLoader::load(const QString& path, quint64 generation) {
 
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        emit finished(generation, false, file.errorString());
+        emit finished(generation, false, file.errorString(), 0);
         return;
     }
 
     const qint64 total = qMax<qint64>(file.size(), 1);
     QTextStream in(&file);
+    in.setEncoding(QStringConverter::Utf8);
 
     QVector<LogModel::Entry> batch;
     batch.reserve(kBatchSize);
@@ -33,7 +35,8 @@ void LogLoader::load(const QString& path, quint64 generation) {
 
     while (!in.atEnd()) {
         if (m_cancel.loadRelaxed()) {
-            emit finished(generation, false, QStringLiteral("canceled"));
+            emit finished(generation, false, QStringLiteral("canceled"),
+                          file.pos());
             return;
         }
 
@@ -58,5 +61,5 @@ void LogLoader::load(const QString& path, quint64 generation) {
         emit batchReady(generation, batch);
 
     emit progress(generation, 100);
-    emit finished(generation, true, QString());
+    emit finished(generation, true, QString(), file.pos());
 }
