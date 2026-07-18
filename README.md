@@ -39,6 +39,25 @@ cmake --build build --config Debug
 If Qt's DLLs are not found at runtime, either add
 `C:/Qt/6.8.1/msvc2022_64/bin` to `PATH` or run `windeployqt` on the executable.
 
+## Package (Windows)
+
+Create a Release build and deploy the required Qt runtime files into
+`dist/LogLens`:
+
+```powershell
+./scripts/package_windows.ps1 -QtDir C:/Qt/6.8.1/msvc2022_64
+```
+
+If the existing build directory already knows the Qt location, `-QtDir` can be
+omitted:
+
+```powershell
+./deploy.bat
+```
+
+Add `-Zip` to also create `dist/LogLens.zip`. Add `-SkipTests` when you only
+want to rebuild/package Release after tests have already passed.
+
 ## Features
 
 - Open logs from File > Open, drag and drop, or a command-line path.
