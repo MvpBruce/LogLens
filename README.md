@@ -43,11 +43,13 @@ If Qt's DLLs are not found at runtime, either add
 
 - Open logs from File > Open, drag and drop, or a command-line path.
 - Stream large files into the table in 10k-line batches from a worker thread.
+- Parse common timestamp, severity, and source prefixes into separate columns.
 - Filter by message text, regex, and severity.
 - Show invalid regex errors in the status bar.
 - Find next/previous within the filtered rows.
 - Highlight filter and find matches directly in the message column.
 - Export the filtered rows to a `.log` or `.txt` file.
+- Export preserves the original raw log lines.
 - Follow appended lines with Tail -f while preserving blank lines.
 - Keep Tail -f and Auto-scroll as separate controls.
 - Resume tailing from the loader's final byte offset to avoid missing writes
@@ -87,6 +89,7 @@ classDiagram
         +appendBatch(batch) void
         +data(index, role) QVariant
         +detectLevel(line)$ Level
+        +parseLine(lineNo, line)$ Entry
         -m_entries : QVector~Entry~
     }
     class LogFilterProxy {
@@ -147,6 +150,10 @@ flowchart LR
 the UI thread. The model is only mutated on the UI thread. `LogTailer` watches
 the same file after the initial load and appends complete new lines from the
 last byte offset reported by the loader.
+
+`LogModel::parseLine` extracts common structured prefixes into `Time`, `Level`,
+`Source`, and `Message` columns. The raw log line is still stored separately so
+filtered export can preserve the original file content.
 
 ## Design Notes
 

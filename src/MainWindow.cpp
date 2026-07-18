@@ -60,7 +60,9 @@ MainWindow::MainWindow(QWidget* parent)
                  pal.color(QPalette::Active, QPalette::HighlightedText));
     m_view->setPalette(pal);
     m_view->setColumnWidth(LogModel::Col_Line, 70);
+    m_view->setColumnWidth(LogModel::Col_Time, 180);
     m_view->setColumnWidth(LogModel::Col_Level, 70);
+    m_view->setColumnWidth(LogModel::Col_Source, 140);
     setCentralWidget(m_view);
 
     // Live tail: parse appended lines and optionally keep the view pinned to
@@ -390,7 +392,10 @@ void MainWindow::exportFiltered() {
 
     QTextStream ts(&out);
     for (int row = 0; row < rows; ++row)
-        ts << m_proxy->index(row, LogModel::Col_Message).data().toString() << '\n';
+        ts << m_proxy->index(row, LogModel::Col_Message)
+                  .data(LogModel::RawTextRole)
+                  .toString()
+           << '\n';
 
     statusBar()->showMessage(
         QStringLiteral("Exported %1 lines to %2").arg(rows).arg(path));

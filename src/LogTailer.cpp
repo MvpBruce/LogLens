@@ -73,7 +73,7 @@ void LogTailer::readNew() {
         if (raw.endsWith('\r'))
             raw.chop(1); // tolerate CRLF logs
         const QString line = QString::fromUtf8(raw);
-        batch.push_back({++lineNo, LogModel::detectLevel(line), line});
+        batch.push_back(LogModel::parseLine(++lineNo, line));
     }
 
     if (!batch.isEmpty()) {

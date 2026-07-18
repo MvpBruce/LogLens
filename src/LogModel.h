@@ -8,11 +8,22 @@ class LogModel : public QAbstractTableModel {
     Q_OBJECT
 public:
     enum class Level { Trace, Debug, Info, Warn, Error, Unknown };
-    enum Column { Col_Line = 0, Col_Level, Col_Message, ColumnCount };
+    enum Column {
+        Col_Line = 0,
+        Col_Time,
+        Col_Level,
+        Col_Source,
+        Col_Message,
+        ColumnCount
+    };
 
-    // Custom role: exposes the raw Level (as int) so the filter proxy and the
-    // coloring delegate can query severity without re-parsing the text.
-    enum Role { LevelRole = Qt::UserRole + 1 };
+    // Custom roles expose parsed data without making callers re-parse text.
+    enum Role {
+        LevelRole = Qt::UserRole + 1,
+        TimeRole,
+        SourceRole,
+        RawTextRole
+    };
 
     static constexpr int LevelCount = 6; // keep in sync with enum Level
 
@@ -21,7 +32,10 @@ public:
     struct Entry {
         int lineNo;
         Level level;
-        QString text;
+        QString time;
+        QString source;
+        QString message;
+        QString rawText;
     };
 
     explicit LogModel(QObject* parent = nullptr);
@@ -44,6 +58,7 @@ public:
                         int role) const override;
 
     static Level detectLevel(const QString& line);
+    static Entry parseLine(int lineNo, const QString& line);
     static QString levelName(Level level);
 
 private:

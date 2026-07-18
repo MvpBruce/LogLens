@@ -42,7 +42,7 @@ void LogLoader::load(const QString& path, quint64 generation) {
 
         const QString line = in.readLine();
         ++lineNo;
-        batch.push_back({lineNo, LogModel::detectLevel(line), line});
+        batch.push_back(LogModel::parseLine(lineNo, line));
 
         if (batch.size() >= kBatchSize) {
             emit batchReady(generation, batch);

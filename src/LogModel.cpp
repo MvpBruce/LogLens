@@ -5,6 +5,23 @@
 #include <QStringConverter>
 #include <QTextStream>
 
+namespace {
+LogModel::Level levelFromToken(QString token) {
+    token = token.toUpper();
+    if (token == "ERROR" || token == "ERR" || token == "FATAL")
+        return LogModel::Level::Error;
+    if (token == "WARN" || token == "WARNING")
+        return LogModel::Level::Warn;
+    if (token == "INFO")
+        return LogModel::Level::Info;
+    if (token == "DEBUG")
+        return LogModel::Level::Debug;
+    if (token == "TRACE")
+        return LogModel::Level::Trace;
+    return LogModel::Level::Unknown;
+}
+} // namespace
+
 LogModel::LogModel(QObject* parent) : QAbstractTableModel(parent) {}
 
 bool LogModel::loadFile(const QString& path, QString* error) {
@@ -24,7 +41,7 @@ bool LogModel::loadFile(const QString& path, QString* error) {
     while (!in.atEnd()) {
         const QString line = in.readLine();
         ++lineNo;
-        m_entries.push_back({lineNo, detectLevel(line), line});
+        m_entries.push_back(parseLine(lineNo, line));
     }
 
     endResetModel();
@@ -69,16 +86,26 @@ QVariant LogModel::data(const QModelIndex& index, int role) const {
         switch (index.column()) {
         case Col_Line:
             return e.lineNo;
+        case Col_Time:
+            return e.time.isEmpty() ? QStringLiteral("-") : e.time;
         case Col_Level:
             return levelName(e.level);
+        case Col_Source:
+            return e.source.isEmpty() ? QStringLiteral("-") : e.source;
         case Col_Message:
-            return e.text;
+            return e.message;
         }
     }
 
     // Raw severity for the filter proxy / coloring delegate (any column).
     if (role == LevelRole)
         return static_cast<int>(e.level);
+    if (role == TimeRole)
+        return e.time;
+    if (role == SourceRole)
+        return e.source;
+    if (role == RawTextRole)
+        return e.rawText;
 
     return {};
 }
@@ -90,8 +117,12 @@ QVariant LogModel::headerData(int section, Qt::Orientation orientation,
     switch (section) {
     case Col_Line:
         return QStringLiteral("#");
+    case Col_Time:
+        return QStringLiteral("Time");
     case Col_Level:
         return QStringLiteral("Level");
+    case Col_Source:
+        return QStringLiteral("Source");
     case Col_Message:
         return QStringLiteral("Message");
     }
@@ -108,18 +139,58 @@ LogModel::Level LogModel::detectLevel(const QString& line) {
     if (!m.hasMatch())
         return Level::Unknown;
 
-    const QString tok = m.captured(1).toUpper();
-    if (tok == "ERROR" || tok == "ERR" || tok == "FATAL")
-        return Level::Error;
-    if (tok == "WARN" || tok == "WARNING")
-        return Level::Warn;
-    if (tok == "INFO")
-        return Level::Info;
-    if (tok == "DEBUG")
-        return Level::Debug;
-    if (tok == "TRACE")
-        return Level::Trace;
-    return Level::Unknown;
+    return levelFromToken(m.captured(1));
+}
+
+LogModel::Entry LogModel::parseLine(int lineNo, const QString& line) {
+    Entry entry{lineNo, detectLevel(line), QString(), QString(), line, line};
+    QString rest = line;
+    bool parsedPrefix = false;
+
+    static const QRegularExpression timeRe(
+        QStringLiteral(
+            "^\\s*\\[?(\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}"
+            "(?:[\\.,]\\d+)?(?:Z|[+-]\\d{2}:?\\d{2})?)\\]?\\s*"));
+    QRegularExpressionMatch timeMatch = timeRe.match(rest);
+    if (timeMatch.hasMatch()) {
+        entry.time = timeMatch.captured(1);
+        rest = rest.mid(timeMatch.capturedEnd()).trimmed();
+        parsedPrefix = true;
+    }
+
+    static const QRegularExpression levelRe(
+        QStringLiteral(
+            "^\\[?(ERROR|ERR|FATAL|WARN(?:ING)?|INFO|DEBUG|TRACE)\\]?\\s*"),
+        QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch levelMatch = levelRe.match(rest);
+    if (levelMatch.hasMatch()) {
+        entry.level = levelFromToken(levelMatch.captured(1));
+        rest = rest.mid(levelMatch.capturedEnd()).trimmed();
+        parsedPrefix = true;
+    }
+
+    if (parsedPrefix) {
+        static const QRegularExpression bracketSourceRe(
+            QStringLiteral("^\\[([^\\]]+)\\]\\s*"));
+        static const QRegularExpression parenSourceRe(
+            QStringLiteral("^\\(([^\\)]+)\\)\\s*"));
+        static const QRegularExpression tokenSourceRe(
+            QStringLiteral("^([A-Za-z_][A-Za-z0-9_.-]*)\\s*(?::|-)\\s+"));
+
+        QRegularExpressionMatch sourceMatch = bracketSourceRe.match(rest);
+        if (!sourceMatch.hasMatch())
+            sourceMatch = parenSourceRe.match(rest);
+        if (!sourceMatch.hasMatch())
+            sourceMatch = tokenSourceRe.match(rest);
+
+        if (sourceMatch.hasMatch()) {
+            entry.source = sourceMatch.captured(1);
+            rest = rest.mid(sourceMatch.capturedEnd()).trimmed();
+        }
+    }
+
+    entry.message = rest;
+    return entry;
 }
 
 QString LogModel::levelName(Level level) {

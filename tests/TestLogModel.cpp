@@ -10,6 +10,7 @@ private slots:
     void detectLevel_data();
     void detectLevel();
     void loadFileReadsUtf8AndPreservesBlankLines();
+    void parsesStructuredPrefixes();
 };
 
 void TestLogModel::detectLevel_data() {
@@ -60,6 +61,10 @@ void TestLogModel::loadFileReadsUtf8AndPreservesBlankLines() {
     QCOMPARE(model.rowCount(), 4);
     QCOMPARE(model.index(0, LogModel::Col_Line).data().toInt(), 1);
     QCOMPARE(model.index(1, LogModel::Col_Message).data().toString(),
+             QString::fromUtf8("caf\xc3\xa9"));
+    QCOMPARE(model.index(1, LogModel::Col_Message)
+                 .data(LogModel::RawTextRole)
+                 .toString(),
              QString::fromUtf8("WARN caf\xc3\xa9"));
     QCOMPARE(model.index(2, LogModel::Col_Message).data().toString(),
              QString());
@@ -67,6 +72,19 @@ void TestLogModel::loadFileReadsUtf8AndPreservesBlankLines() {
                  .data(LogModel::LevelRole)
                  .toInt(),
              static_cast<int>(LogModel::Level::Error));
+}
+
+void TestLogModel::parsesStructuredPrefixes() {
+    const QString line = QStringLiteral(
+        "2026-07-18 14:05:09.123 [WARN] [worker-7] request took 412 ms");
+    const LogModel::Entry entry = LogModel::parseLine(42, line);
+
+    QCOMPARE(entry.lineNo, 42);
+    QCOMPARE(entry.time, QStringLiteral("2026-07-18 14:05:09.123"));
+    QCOMPARE(entry.level, LogModel::Level::Warn);
+    QCOMPARE(entry.source, QStringLiteral("worker-7"));
+    QCOMPARE(entry.message, QStringLiteral("request took 412 ms"));
+    QCOMPARE(entry.rawText, line);
 }
 
 QTEST_MAIN(TestLogModel)
