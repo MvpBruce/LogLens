@@ -46,6 +46,7 @@ If Qt's DLLs are not found at runtime, either add
 - Filter by message text, regex, and severity.
 - Show invalid regex errors in the status bar.
 - Find next/previous within the filtered rows.
+- Highlight filter and find matches directly in the message column.
 - Export the filtered rows to a `.log` or `.txt` file.
 - Follow appended lines with Tail -f while preserving blank lines.
 - Keep Tail -f and Auto-scroll as separate controls.
@@ -97,6 +98,8 @@ classDiagram
         -m_rows : QVector~int~
     }
     class LogDelegate {
+        +setFilterHighlight(text, useRegex) void
+        +setFindHighlight(text) void
         #initStyleOption(opt, index) void
     }
     class LogLoader {

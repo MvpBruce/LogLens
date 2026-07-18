@@ -4,6 +4,7 @@
 
 class LogModel;
 class LogFilterProxy;
+class LogDelegate;
 class LogLoader;
 class LogTailer;
 class QCheckBox;
@@ -47,8 +48,10 @@ private:
 
     LogModel* m_model;
     LogFilterProxy* m_proxy;
+    LogDelegate* m_delegate;
     QTableView* m_view;
     QLineEdit* m_query = nullptr;
+    QCheckBox* m_regexToggle = nullptr;
     QTimer* m_filterTimer = nullptr; // debounces text filtering
 
     QThread* m_thread = nullptr;

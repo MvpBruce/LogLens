@@ -33,6 +33,7 @@ MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent),
       m_model(new LogModel(this)),
       m_proxy(new LogFilterProxy(this)),
+      m_delegate(new LogDelegate(this)),
       m_view(new QTableView(this)) {
     setWindowTitle(QStringLiteral("LogLens"));
     resize(1000, 640);
@@ -41,7 +42,7 @@ MainWindow::MainWindow(QWidget* parent)
     // View -> proxy (filter) -> model. The view never sees the model directly.
     m_proxy->setSourceModel(m_model);
     m_view->setModel(m_proxy);
-    m_view->setItemDelegate(new LogDelegate(this)); // severity coloring
+    m_view->setItemDelegate(m_delegate); // severity coloring + match highlights
     m_view->setShowGrid(false);
     m_view->setAlternatingRowColors(true);
     m_view->verticalHeader()->setVisible(false);
@@ -204,11 +205,16 @@ void MainWindow::buildFilterBar() {
     auto applyQuery = [this] {
         m_proxy->setQuery(m_query->text());
         if (m_proxy->hasRegexError()) {
+            m_delegate->setFilterHighlight(QString(), false);
+            m_view->viewport()->update();
             statusBar()->showMessage(
                 QStringLiteral("Invalid regex: %1")
                     .arg(m_proxy->regexErrorString()));
             return;
         }
+        m_delegate->setFilterHighlight(m_query->text(),
+                                       m_regexToggle && m_regexToggle->isChecked());
+        m_view->viewport()->update();
         updateStatus();
     };
 
@@ -226,12 +232,14 @@ void MainWindow::buildFilterBar() {
             [this] { m_filterTimer->start(); });
     bar->addWidget(m_query);
 
-    auto* regex = new QCheckBox(QStringLiteral("Regex"), bar);
-    connect(regex, &QCheckBox::toggled, this, [this, applyQuery](bool on) {
+    m_regexToggle = new QCheckBox(QStringLiteral("Regex"), bar);
+    connect(m_regexToggle, &QCheckBox::toggled, this, [this, applyQuery](bool on) {
         m_proxy->setUseRegex(on);
+        m_delegate->setFilterHighlight(m_query->text(), on);
+        m_view->viewport()->update();
         applyQuery();
     });
-    bar->addWidget(regex);
+    bar->addWidget(m_regexToggle);
 
     bar->addSeparator();
     bar->addWidget(new QLabel(QStringLiteral(" Levels: "), bar));
@@ -304,6 +312,10 @@ void MainWindow::buildFindBar() {
     m_find->setPlaceholderText(QStringLiteral("Find in messages (Enter = next)"));
     m_find->setClearButtonEnabled(true);
     m_find->setMinimumWidth(240);
+    connect(m_find, &QLineEdit::textChanged, this, [this](const QString& text) {
+        m_delegate->setFindHighlight(text);
+        m_view->viewport()->update();
+    });
     connect(m_find, &QLineEdit::returnPressed, this, [this] { findNext(true); });
     bar->addWidget(m_find);
 
