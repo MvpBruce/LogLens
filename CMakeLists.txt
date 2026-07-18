@@ -52,3 +52,13 @@ qt_add_executable(TestLogFilterProxy
 target_link_libraries(TestLogFilterProxy PRIVATE Qt6::Test Qt6::Widgets)
 add_test(NAME TestLogFilterProxy COMMAND TestLogFilterProxy)
 set_tests_properties(TestLogFilterProxy PROPERTIES ENVIRONMENT "PATH=${QT_BIN_DIR}")
+
+qt_add_executable(TestLogTailer
+  tests/TestLogTailer.cpp
+  src/LogTailer.cpp
+  src/LogTailer.h
+  src/LogModel.cpp
+  src/LogModel.h)
+target_link_libraries(TestLogTailer PRIVATE Qt6::Test Qt6::Widgets)
+add_test(NAME TestLogTailer COMMAND TestLogTailer)
+set_tests_properties(TestLogTailer PROPERTIES ENVIRONMENT "PATH=${QT_BIN_DIR}")

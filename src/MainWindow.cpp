@@ -62,18 +62,27 @@ MainWindow::MainWindow(QWidget* parent)
     m_view->setColumnWidth(LogModel::Col_Level, 70);
     setCentralWidget(m_view);
 
-    // Live tail: parse appended lines and (when following) keep the view pinned
-    // to the bottom. The at-bottom check must be sampled *before* rows arrive.
+    // Live tail: parse appended lines and optionally keep the view pinned to
+    // the bottom. The at-bottom check must be sampled before rows arrive.
     m_tailer = new LogTailer(m_model, this);
     connect(m_tailer, &LogTailer::appended, this, &MainWindow::updateStatus);
+    connect(m_tailer, &LogTailer::truncated, this,
+            [this](qint64 previousOffset, qint64 newSize) {
+                statusBar()->showMessage(
+                    QStringLiteral(
+                        "File was truncated or rotated; resumed from byte 0 "
+                        "(old offset %1, new size %2)")
+                        .arg(previousOffset)
+                        .arg(newSize));
+            });
     connect(m_model, &QAbstractItemModel::rowsAboutToBeInserted, this, [this] {
-        if (!m_tailing)
+        if (!m_tailing || !m_autoScroll)
             return;
         const QScrollBar* sb = m_view->verticalScrollBar();
         m_stickToBottom = sb->value() >= sb->maximum() - 2;
     });
     connect(m_model, &QAbstractItemModel::rowsInserted, this, [this] {
-        if (m_tailing && m_stickToBottom)
+        if (m_tailing && m_autoScroll && m_stickToBottom)
             m_view->scrollToBottom();
     });
 
@@ -179,7 +188,7 @@ void MainWindow::openPath(const QString& path) {
     m_model->beginStreaming(); // clear to empty; batches stream in
     m_progress->setValue(0);
     m_progress->show();
-    setWindowTitle(QStringLiteral("LogLens — %1").arg(QFileInfo(path).fileName()));
+    setWindowTitle(QStringLiteral("LogLens - %1").arg(QFileInfo(path).fileName()));
     statusBar()->showMessage(QStringLiteral("Loading %1...").arg(path));
 
     emit requestLoad(path, m_generation);
@@ -256,6 +265,15 @@ void MainWindow::buildFilterBar() {
             stopTailing();
     });
     bar->addWidget(m_tailToggle);
+
+    m_autoScrollToggle = new QCheckBox(QStringLiteral("Auto-scroll"), bar);
+    m_autoScrollToggle->setChecked(true);
+    connect(m_autoScrollToggle, &QCheckBox::toggled, this, [this](bool on) {
+        m_autoScroll = on;
+        if (m_tailing && m_autoScroll)
+            m_view->scrollToBottom();
+    });
+    bar->addWidget(m_autoScrollToggle);
 }
 
 void MainWindow::startTailing() {
@@ -267,7 +285,8 @@ void MainWindow::startTailing() {
     // lines appended between initial load completion and watcher setup.
     m_tailer->start(m_currentPath, m_loadedOffset);
     m_tailing = true;
-    m_view->scrollToBottom();
+    if (m_autoScroll)
+        m_view->scrollToBottom();
 }
 
 void MainWindow::stopTailing() {

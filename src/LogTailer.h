@@ -20,17 +20,17 @@ public:
     // loaded. New bytes past `offset` are parsed and appended.
     void start(const QString& path, qint64 offset);
     void stop();
+    void readNew();
     bool isActive() const { return m_active; }
 
 signals:
     void appended(); // emitted after new lines are added
+    void truncated(qint64 previousOffset, qint64 newSize);
 
 private slots:
     void onFileChanged(const QString& path);
 
 private:
-    void readNew();
-
     LogModel* m_model;
     QFileSystemWatcher* m_watcher;
     QString m_path;

@@ -44,9 +44,9 @@ void LogTailer::readNew() {
 
     const qint64 size = f.size();
     if (size < m_offset) {
-        // Truncated/rotated: resync to the new end to avoid duplicate lines.
-        m_offset = size;
-        return;
+        const qint64 previousOffset = m_offset;
+        m_offset = 0;
+        emit truncated(previousOffset, size);
     }
     if (size == m_offset)
         return; // metadata-only change, nothing new

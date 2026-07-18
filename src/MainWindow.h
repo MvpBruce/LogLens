@@ -59,8 +59,10 @@ private:
 
     LogTailer* m_tailer = nullptr;
     QCheckBox* m_tailToggle = nullptr;
+    QCheckBox* m_autoScrollToggle = nullptr;
     QLineEdit* m_find = nullptr;
     QString m_currentPath;
-    bool m_tailing = false;      // auto-scroll only while actively tailing
+    bool m_tailing = false;      // true while actively reading appended lines
+    bool m_autoScroll = true;    // true when new rows should keep the view pinned
     bool m_stickToBottom = false; // view was at the bottom before an append
 };

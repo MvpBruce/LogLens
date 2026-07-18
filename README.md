@@ -48,8 +48,10 @@ If Qt's DLLs are not found at runtime, either add
 - Find next/previous within the filtered rows.
 - Export the filtered rows to a `.log` or `.txt` file.
 - Follow appended lines with Tail -f while preserving blank lines.
+- Keep Tail -f and Auto-scroll as separate controls.
 - Resume tailing from the loader's final byte offset to avoid missing writes
   that happen between initial load completion and watcher setup.
+- Resume from byte 0 when the watched file is truncated or rotated.
 
 ## Architecture
 
@@ -166,6 +168,12 @@ EOF but before the file watcher was armed.
 `LogTailer` reads only complete lines and leaves a half-written final line for a
 future file-change notification. Blank lines are preserved.
 
+Tail -f only controls whether new bytes are read. Auto-scroll is a separate
+toggle, so a user can keep receiving new rows while staying parked on an older
+part of the log. If the watched file becomes smaller than the last consumed
+offset, LogLens treats that as truncation or rotation, reports it in the status
+bar, and resumes reading from byte 0 of the new file contents.
+
 ### Custom Proxy Instead of QSortFilterProxyModel
 
 The first implementation used `QSortFilterProxyModel`. On a 500k-line log,
@@ -182,7 +190,7 @@ keystroke.
 ## Known Limitations
 
 - Logs are currently decoded as UTF-8.
-- Tail -f handles appended lines and truncation defensively, but full log
-  rotation behavior can still be improved.
+- Full log rotation edge cases, such as a watched path disappearing briefly
+  before the replacement file appears, can still be improved.
 - Filtering scans all loaded rows; additional indexing or cached lowercase text
   could improve very large repeated searches.
